@@ -70,6 +70,7 @@ class MavProxyConnector(MavChannelEndpoint, threading.Thread):
         self.ip = ip
         self.s = self.connectToMavProxy(port)
         self.addr = (ip, port)
+        self.closing = False
 
     def connectToMavProxy(self, PORT):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -80,16 +81,26 @@ class MavProxyConnector(MavChannelEndpoint, threading.Thread):
     def sendOut(self, msg):
         self.s.sendto(msg.msg, self.addr)
 
-    def run(self):
-        # prctl.set_name(self.name)
-        self.receiveMessages()
+    def close(self):
+        self.closing = True
+        if self.s is not None:
+            try:
+                self.s.shutdown(socket.SHUT_RDWR)
+            except:
+                self.log.warning('Trying to shut down disconnected socket')
+            self.s.close()
+            self.s = None
 
-    def receiveMessages(self):
+    def run(self):
         while True:
-            data, self.addr = self.s.recvfrom(1024)
-            msg = MavlinkMsg(data)
-            self.before.receive(msg)
-            # self.log.debug("Received message from mav proxy")
+            if self.closing:
+                break
+            if self.s is not None:
+                data, self.addr = self.s.recvfrom(1024)
+                msg = MavlinkMsg(data)
+                self.before.receive(msg)
+
+
 
 
 class UDPSocketCP(MavChannelEndpoint):
@@ -122,7 +133,7 @@ class MissionPlannerUDPCLConnection(MavChannelEndpoint, threading.Thread):
             self.s.sendto(msg.msg, self.addr)
         else:
             self.log.warning("No connection yet!")
-            time.sleep(1)
+            #time.sleep(1)
 
     def run(self):
         self.receiveMsg()

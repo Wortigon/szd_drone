@@ -36,6 +36,12 @@ class Distributor():
         for ch in self.registeredChannelsWest:
             self.startAllinCh(ch)
 
+    def close(self):
+        for ch in self.registeredChannelsEast:
+            self.stopAllinCh(ch)
+        for ch in self.registeredChannelsWest:
+            self.stopAllinCh(ch)
+
     def startAllinCh(self, ch):
         ch.daemon = True
         ch.start()
@@ -43,6 +49,16 @@ class Distributor():
             ch.endPoint.daemon = True
             ch.endPoint.start()
             self.log.info("Starting thread " + str(type(ch.endPoint)))
+
+    def stopAllinCh(self, ch):
+        if isinstance(ch.endPoint, threading.Thread):
+            ch.endPoint.close()
+            ch.endPoint.join()
+        self.log.info("Stopping thread " + str(type(ch)))
+        ch.close()
+        ch.join()
+        self.log.info("Stopped thread")
+
 
     def sendToEast(self, msg):
         for regCh in self.registeredChannelsEast:

@@ -1,6 +1,7 @@
 import threading
 import logging
 import queue
+import time
 import commonlib.mavlink as mavlink
 
 
@@ -76,6 +77,7 @@ class MavChannel(MavChannelElement, threading.Thread):
         self.distributor = None
         self.mavChanelElements = list()
         self.endPoint = None
+        self.closing = False
 
     def addDistrib(self, d):
         self.distributor = d
@@ -91,10 +93,18 @@ class MavChannel(MavChannelElement, threading.Thread):
         if self.endPoint:
             mavElement.connectMavElement(self.endPoint)
 
+    def close(self):
+        self.closing = True;
+
     def run(self):
         while True:
-            msg = self.endPoint.sendingQueue.get()
-            self.endPoint.sendOut(msg)
+            try:
+                msg = self.endPoint.sendingQueue.get(False)
+                self.endPoint.sendOut(msg)
+            except:
+                time.sleep(0.1)
+            if self.closing:
+                break
 
     def send(self, msg):
         self.distributor.send(msg)
