@@ -133,7 +133,7 @@ class MissionPlannerUDPCLConnection(MavChannelEndpoint, threading.Thread):
             self.s.sendto(msg.msg, self.addr)
         else:
             self.log.warning("No connection yet!")
-            #time.sleep(1)
+            time.sleep(1)
 
     def run(self):
         self.receiveMsg()
