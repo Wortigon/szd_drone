@@ -26,6 +26,12 @@ class TCPServerEP(MavChannelEndpoint, threading.Thread):
         logging.info("Bind to port %d on %s ip" % (self.port, self.ip))
         self.s.listen(1)
 
+    def closePort(self):
+        if self.s is not None:
+            self.s.shutdown()
+            self.s.close()
+            self.s = None
+
     def waitingConnection(self):
         conn, addr = self.s.accept()
         logging.info('Connected on port %d to %s from address %s' % (self.port, self.name, str(addr)))
@@ -57,10 +63,22 @@ class TCPServerEP(MavChannelEndpoint, threading.Thread):
             logging.warning("Connection closed on port %d" % self.port)
 
     def run(self):
-        self.openPort()
-        while True:
-            self.waitingConnection()
-            self.receiveMessages()
+        try:
+            self.openPort()
+            while True:
+                try:
+                    self.waitingConnection()
+                    self.receiveMessages()
+                except KeyboardInterrupt:
+                    raise
+                except Exception as e:
+                    self.log.warning("caught an exception: %s" % str(e))
+        except KeyboardInterrupt:
+            raise
+        finally:
+            self.closePort()
+
+
 
 
 class PacketPrinterBase(PacketPrinter):
