@@ -51,13 +51,16 @@ class Distributor():
             self.log.info("Starting thread " + str(type(ch.endPoint)))
 
     def stopAllinCh(self, ch):
-        if isinstance(ch.endPoint, threading.Thread):
-            ch.endPoint.close()
-            ch.endPoint.join()
-        self.log.info("Stopping thread " + str(type(ch)))
-        ch.close()
-        ch.join()
-        self.log.info("Stopped thread")
+        try:
+            if isinstance(ch.endPoint, threading.Thread):
+                ch.endPoint.close()
+                ch.endPoint.join()
+            self.log.info("Stopping thread " + str(type(ch)))
+            ch.close()
+            ch.join()
+            self.log.info("Stopped thread")
+        except:
+            self.log.warning("Trying to stop non-running thread")
 
 
     def sendToEast(self, msg):
