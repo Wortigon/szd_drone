@@ -2,19 +2,13 @@
 import time
 import subprocess32
 import sys
+import os
 from commonlib.distribute import Distributor
 from commonlib.channelComponents import *
-from copterproxylib.lte.lteSignalSender import LTESignalSender
 
-from copterproxylib.copterChannelComponents import MySqlCopterDataEP, TCPClientEP
+from copterproxylib.copterChannelComponents import TCPClientEP
 
 import commonlib.secure as secure
-
-"""
-mySQLLteLogStart = True
-mySQLCopterDataLogStart = True
-loraToSendMavID = [0, 33]
-"""
 
 mavproxy = None
 distributor = None
@@ -22,17 +16,18 @@ serverEP = None
 
 def checkMAVProxyConnection():
     global mavproxy
-    isMavProxyAlive = mavproxy is not None and mavproxy.poll() is None
+    isMavProxyAlive = mavproxy is not None and mavproxy.poll() is None        
     if isMavProxyAlive:
         logging.info("Mavproxy is alive poll result is: %s" % mavproxy.poll())
-        temp = mavproxy.communicate(timeout=5)[0]
-        logging.info("comm result is: %s" % temp.decode('UTF-8'))
     else:
         reason = None
         if mavproxy is None:
             reason = 'mavproxy is "none"'
         else:
-            reason = 'mavproxy has no response or is disconnected'
+            if mavproxy.poll() is 1:
+                reason = "Mavproxy exited with error code: 1"
+            else:
+                reason = 'mavproxy has no response or is disconnected'
         logging.info("Mavproxy is dead. Reason: %s" % reason)
     return isMavProxyAlive
 
@@ -67,17 +62,27 @@ def closeConnection():
 
 def initializeMAVProxyConnection():
     global mavproxy
-    mavproxy = subprocess32.Popen(
-        secure.terminal + secure.mavproxypath + "mavproxy.py --master=" + secure.master + " --baudrate 57600 --out 127.0.0.1:14551 --aircraft ./MyCopter",
-        stdout=subprocess32.PIPE, stdin=None, shell=True)
+    logging.info("initializing MAVProxy")
+    os.setgid(0)
+    os.setuid(0)
+    #removed params
+    #"--logfile", "/home/rtd/mavpro.log",
+    mavproxy = subprocess32.Popen(["/usr/bin/python3", "/usr/local/bin/mavproxy.py", "--master=" + secure.master, "--baudrate", "57600", "--out", "127.0.0.1:14551", "--aircraft", "/home/rtd/MyCopter/", "--daemon"], start_new_session=True, stdout=subprocess32.PIPE, stdin=None, shell=False)
     try:
+        #"""
         result = mavproxy.communicate(timeout=5)[0]
-        resultstr = result.decode('UTF-8')
+        resultstr = result.decode('ascii')
+        logging.info("communicate call result: {%s}" % resultstr)
         if "Failed" in resultstr:
-            logging.error('Failed to connect mavproxy: {%s}' % result)
+            logging.error("Failed to connect mavproxy: {%s}" % result)
             raise RuntimeError("Failed to connect mavproxy: {%s}" % result)
+        #"""
+        if checkMAVProxyConnection():
+            logging.info("MAVProxy initialised")
+        else:
+            logging.info("Failed to initialise MAVProxy")
     except subprocess32.TimeoutExpired:
-        logging.debug("No problem with mavproxy")
+        logging.error("MAVProxy runs as expected")
 
 def initializeDistributor():
     global distributor, serverEP
@@ -96,7 +101,7 @@ def waitForServer():
     temp = 0
     while serverEP.connected is False:
         logging.info("waiting for TCP connection")
-        time.sleep(2)
+        time.sleep(1)
         temp+=1
         if temp > 5:
             break
@@ -124,11 +129,16 @@ def main():
 
     try:
         while True:
-            logging.info("\r\n\r\n\r\n*********************************************************************\r\n")
-            if not checkConnectionState():
-                resetConnection()
-                waitForServer()
-            time.sleep(1)
+            try:
+                logging.info("\r\n\r\n\r\n*********************************************************************\r\n")
+                if not checkConnectionState():
+                    resetConnection()
+                    waitForServer()
+                time.sleep(1)
+            except KeyboadrInterrupt:
+                raise
+            except Exception as e:
+                self.log.debug("caught an exception: %s" % str(e))
     except KeyboardInterrupt:
         closeConnection()
         sys.exit(0)
@@ -137,6 +147,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # trying db
-    # db = MySqlCopterDataEP()
-    # print db.getLastId()
+
